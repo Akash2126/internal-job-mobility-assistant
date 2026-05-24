@@ -1,0 +1,8 @@
+{
+  "name": "Internal Job Mobility Assistant",
+  "description": "An AI-powered enterprise HR-tech platform that helps employees discover internal career opportunities, analyze skill alignment, identify skill gaps, and receive personalized AI-driven career growth recommendations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

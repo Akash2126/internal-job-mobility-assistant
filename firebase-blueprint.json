@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Seeded identity representation inside the enterprise portal database",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique corporate identifier matching request.auth.uid" },
+        "email": { "type": "string", "description": "Enterprise email" },
+        "role": { "type": "string", "enum": ["EMPLOYEE", "HR_ADMIN"], "description": "Access RBAC designation role" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Talent profile with professional skill alignments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "department": { "type": "string" },
+        "level": { "type": "string" },
+        "hireDate": { "type": "string" },
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" },
+        "domain": { "type": "string", "enum": ["aiml", "fullstack", "data", "salesforce", "servicenow"] },
+        "workStyle": { "type": "string" },
+        "relocation": { "type": "boolean" },
+        "priorityAreas": { "type": "string" },
+        "interests": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "title", "department"]
+    },
+    "Skill": {
+      "title": "Skill",
+      "description": "Technical tag representing competence",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "profileId": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "profileId", "name"]
+    },
+    "Certification": {
+      "title": "Certification",
+      "description": "Professional certifications badges",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "profileId": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "profileId", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Secure user directory"
+    },
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "Secure talent resume and upskilling directory mapping"
+    },
+    "/skills/{skillId}": {
+      "schema": "Skill",
+      "description": "Technical tags associated with profiles"
+    },
+    "/certifications/{certId}": {
+      "schema": "Certification",
+      "description": "Industry qualification badge associated with profiles"
+    }
+  }
+}
