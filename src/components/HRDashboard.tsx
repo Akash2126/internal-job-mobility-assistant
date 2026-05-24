@@ -12,6 +12,19 @@ import {
 } from "lucide-react";
 import { HRAnalytics } from "../types";
 
+const safeParseJson = async (res: Response, fallback: any = {}) => {
+  try {
+    if (!res.ok) return fallback;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error("safeParseJson failed in HRDashboard:", e);
+  }
+  return fallback;
+};
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -110,11 +123,11 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
       ]);
 
       if (jobsRes.ok) {
-        const data = await jobsRes.json();
+        const data = await safeParseJson(jobsRes);
         setRecruitmentJobs(data.jobs || []);
       }
       if (applicantsRes.ok) {
-        const data = await applicantsRes.json();
+        const data = await safeParseJson(applicantsRes);
         setApplicants(data.applicants || []);
       }
     } catch (err) {
@@ -193,8 +206,8 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         triggerNotice(
           editingJob ? "Position Modified" : "New Opening Created",
           `Internal posting '${payload.title}' has been safely registered. Workforce metrics updated.`,
@@ -205,7 +218,7 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
         await onRefreshJobs();
         await loadRecruitmentStats();
       } else {
-        alert("Operation Error: " + data.message);
+        alert("Operation Error: " + ((data && data.message) || "Unknown error"));
       }
     } catch (err: any) {
       console.error("Failed to commit job posting draft:", err);
@@ -220,8 +233,8 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
       const res = await fetchWithAuth(`/api/v1/hr/jobs/${jobId}`, {
         method: "DELETE"
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         triggerNotice("Position Deleted", `'${title}' has been successfully pruned from active rosters.`, "info");
         await onRefreshJobs();
         await loadRecruitmentStats();
@@ -239,8 +252,8 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
         method: "POST",
         body: JSON.stringify({ status: nextStatus })
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         triggerNotice(
           "Pipeline Updated",
           `Status transitioned: ${currentStatus} → ${nextStatus} for candidate files.`,
@@ -266,8 +279,8 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
       setAiRecommendations([]);
       const res = await fetchWithAuth(`/api/v1/hr/recommendations/${job.id}`);
       if (res.ok) {
-        const data = await res.json();
-        setAiRecommendations(data.recommendations || []);
+        const data = await safeParseJson(res);
+        setAiRecommendations((data && data.recommendations) || []);
       }
     } catch (err) {
       console.error("AI recommendations generator failed:", err);
@@ -291,10 +304,10 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
       });
 
       if (appRes.ok) {
-        const appData = await appRes.json();
+        const appData = await safeParseJson(appRes);
         
         // Progress stage to 'Shortlisted' automatically as recommended elite talent
-        if (appData.application && appData.application.id) {
+        if (appData && appData.application && appData.application.id) {
           await fetchWithAuth(`/api/v1/hr/applicants/${appData.application.id}/status`, {
             method: "POST",
             body: JSON.stringify({ status: "Shortlisted" })
@@ -334,8 +347,8 @@ export default function HRDashboard({ analytics, fetchWithAuth, jobs, onRefreshJ
         })
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         triggerNotice(
           "Interview Locked",
           `Session arranged with ${schedulingApplicant.candidate.name} for ${interviewDate} at ${interviewTime}. Outgoing corporate notifications logged inside SMTP dispatcher.`,

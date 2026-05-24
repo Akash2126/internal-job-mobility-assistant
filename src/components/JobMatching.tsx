@@ -33,22 +33,37 @@ export default function JobMatching({
     setCustomRoadmap(null);
     try {
       // Fetch dynamic matching alignment metrics from our Node.js full-stack server endpoints!
+      const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
       const fetchFn = fetchWithAuth || (async (url: string, opts?: RequestInit) => fetch(url, opts));
-      const res = await fetchFn(`/api/v1/ai/match-analysis`, {
+      const res = await fetchFn(`${API_BASE_URL}/api/v1/ai/match-analysis`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: job.id })
       });
-      const data = await res.json();
+      
+      let data: any = {};
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          data = await res.json();
+        }
+      }
+
       if (data.success) {
         setCustomRoadmap(data.analysis);
       } else {
         // Fallback legacy proxy trigger
-        const legacyRes = await fetch(`/api/jobs/${job.id}/match`, {
+        const legacyRes = await fetch(`${API_BASE_URL}/api/jobs/${job.id}/match`, {
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
-        const legacyData = await legacyRes.json();
+        let legacyData: any = {};
+        if (legacyRes.ok) {
+          const legacyContentType = legacyRes.headers.get("content-type");
+          if (legacyContentType && legacyContentType.includes("application/json")) {
+            legacyData = await legacyRes.json();
+          }
+        }
         if (legacyData.success) {
           setCustomRoadmap(legacyData.analysis);
         }

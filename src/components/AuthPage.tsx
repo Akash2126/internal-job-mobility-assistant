@@ -3,6 +3,25 @@ import { motion, AnimatePresence } from "motion/react";
 import { Lock, Mail, User, Shield, Briefcase, Sparkles, Compass, CheckCircle2, AlertTriangle } from "lucide-react";
 import { authenticateWithGoogle } from "../lib/firebase";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
+async function safeFetch(url: string, options: RequestInit = {}) {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get("content-type");
+    let data: any = {};
+    if (contentType && contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { success: res.ok, message: text || `HTTP error ${res.status}` };
+    }
+    return { ok: res.ok, status: res.status, data };
+  } catch (err: any) {
+    return { ok: false, status: 500, data: { success: false, message: err.message || "Network request failed" } };
+  }
+}
+
 interface AuthPageProps {
   onAuthSuccess: (token: string, user: { id: string; email: string; role: "EMPLOYEE" | "HR_ADMIN" }, profile: any) => void;
   onBackToLanding: () => void;
@@ -56,7 +75,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding }: AuthPagePro
         console.warn("Using Sandbox Corporate OAuth bypass:", authErr);
         // Fallback for mock environment
         const targetEmail = email || "kumarakash02401@gmail.com";
-        const res = await fetch("/api/v1/auth/firebase-google", {
+        const { ok, data } = await safeFetch(`${API_BASE_URL}/api/v1/auth/firebase-google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -69,8 +88,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding }: AuthPagePro
           }),
         });
 
-        const data = await res.json();
-        if (res.ok && data.success) {
+        if (ok && data.success) {
           triggerToast("success", "Google Account sandbox validation complete!");
           onAuthSuccess(data.token, data.user, data.profile);
           return;
@@ -81,7 +99,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding }: AuthPagePro
       if (result && result.user) {
         const { user: firebaseUser } = result;
 
-        const res = await fetch("/api/v1/auth/firebase-google", {
+        const { ok, data } = await safeFetch(`${API_BASE_URL}/api/v1/auth/firebase-google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -94,8 +112,7 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding }: AuthPagePro
           }),
         });
 
-        const data = await res.json();
-        if (!res.ok || !data.success) {
+        if (!ok || !data.success) {
           throw new Error(data.message || "Gateway database profiles sync mismatch.");
         }
 
@@ -116,19 +133,18 @@ export default function AuthPage({ onAuthSuccess, onBackToLanding }: AuthPagePro
     setLoading(true);
 
     try {
-      const url = isLogin ? "/api/v1/auth/login" : "/api/v1/auth/signup";
+      const endpoint = isLogin ? "/api/v1/auth/login" : "/api/v1/auth/signup";
       const payload = isLogin
         ? { email, password }
         : { email, password, role, name, domain, department: role === "HR_ADMIN" ? "People Strategy" : "Engineering" };
 
-      const res = await fetch(url, {
+      const { ok, data } = await safeFetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!ok || !data.success) {
         throw new Error(data.message || "Authentication gateway handshake failed.");
       }
 

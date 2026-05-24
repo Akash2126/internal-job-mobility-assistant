@@ -96,7 +96,9 @@ export default function App() {
       ...(activeToken ? { "Authorization": `Bearer ${activeToken}` } : {}),
       ...options.headers,
     };
-    const res = await fetch(url, { ...options, headers });
+    const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+    const targetUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+    const res = await fetch(targetUrl, { ...options, headers });
     if (res.status === 401 || res.status === 403) {
       // Automatic session expire handling
       localStorage.removeItem("mobility_token");
@@ -108,6 +110,19 @@ export default function App() {
     return res;
   };
 
+  const safeParseJson = async (res: Response, fallback: any = null) => {
+    try {
+      if (!res.ok) return fallback;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error("JSON parsing safety fallback triggered:", e);
+    }
+    return fallback;
+  };
+
   // Sync state data whenever token status gets updated
   useEffect(() => {
     if (!token) return;
@@ -116,7 +131,8 @@ export default function App() {
       try {
         const meRes = await fetchWithAuth("/api/v1/auth/me");
         if (!meRes.ok) return;
-        const meData = await meRes.json();
+        const meData = await safeParseJson(meRes);
+        if (!meData || !meData.user) return;
         setUser(meData.user);
         setViewMode("app"); // Keep user inside the platform dashboard workspace
 
@@ -134,9 +150,9 @@ export default function App() {
           fetchWithAuth(`/api/v1/coach/chat?domain=${activeDomain}`)
         ]);
 
-        const profileData = await profileRes.json();
-        const jobsData = await jobsRes.json();
-        const chatData = await chatRes.json();
+        const profileData = await safeParseJson(profileRes);
+        const jobsData = await safeParseJson(jobsRes, []);
+        const chatData = await safeParseJson(chatRes, []);
 
         if (profileData && profileData.domain) {
           setActiveDomain(profileData.domain);
@@ -145,14 +161,14 @@ export default function App() {
           setProfile(profileData);
         }
 
-        setJobs(jobsData);
-        setChatLogs(chatData);
+        setJobs(jobsData || []);
+        setChatLogs(chatData || []);
 
         // Load applications history from DB to represent historical state
         const appHistoryRes = await fetchWithAuth("/api/v1/jobs/applications");
         if (appHistoryRes.ok) {
-          const appHistory = await appHistoryRes.json();
-          const appliedIds = appHistory.map((app: any) => app.jobId);
+          const appHistory = await safeParseJson(appHistoryRes, []);
+          const appliedIds = (appHistory || []).map((app: any) => app.jobId);
           setHasAppliedJobs(appliedIds);
         }
 
@@ -160,8 +176,10 @@ export default function App() {
         if (meData.user.role === "HR_ADMIN") {
           const hrRes = await fetchWithAuth(`/api/v1/hr/analytics?domain=${profileData?.domain || "all"}`);
           if (hrRes.ok) {
-            const hrDataVal = await hrRes.json();
-            setHrData(hrDataVal);
+            const hrDataVal = await safeParseJson(hrRes);
+            if (hrDataVal) {
+              setHrData(hrDataVal);
+            }
           }
         } else {
           // Provide an empty dashboard payload for EMPLOYEES (since it is restricted securely)
@@ -220,22 +238,24 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ domain, department: getDepartmentByDomain(domain) })
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         setActiveDomain(domain);
         setProfile(data.profile);
 
         // Fetch refreshed chat logs reflecting domain focus
         const chatRes = await fetchWithAuth(`/api/v1/coach/chat?domain=${domain}`);
-        const chatData = await chatRes.json();
+        const chatData = await safeParseJson(chatRes, []);
         setChatLogs(chatData);
 
         // Refresh analytics if they are HR_ADMIN
         if (user?.role === "HR_ADMIN") {
           const hrRes = await fetchWithAuth(`/api/v1/hr/analytics?domain=${domain}`);
           if (hrRes.ok) {
-            const hrDataVal = await hrRes.json();
-            setHrData(hrDataVal);
+            const hrDataVal = await safeParseJson(hrRes);
+            if (hrDataVal) {
+              setHrData(hrDataVal);
+            }
           }
         }
 
@@ -291,8 +311,8 @@ export default function App() {
       method: "POST",
       body: JSON.stringify({ text, domain: activeDomain })
     });
-    const responseData = await res.json();
-    if (responseData.success) {
+    const responseData = await safeParseJson(res);
+    if (responseData && responseData.success) {
       setChatLogs(responseData.history);
     }
   };
@@ -303,8 +323,8 @@ export default function App() {
       method: "POST",
       body: JSON.stringify({ domain: activeDomain })
     });
-    const data = await res.json();
-    if (data.success) {
+    const data = await safeParseJson(res);
+    if (data && data.success) {
       setChatLogs(data.history);
     }
   };
@@ -315,8 +335,8 @@ export default function App() {
       method: "POST",
       body: JSON.stringify(updated)
     });
-    const data = await res.json();
-    if (data.success) {
+    const data = await safeParseJson(res);
+    if (data && data.success) {
       setProfile(data.profile);
     }
   };
@@ -333,7 +353,8 @@ export default function App() {
     formData.append("resume", file);
 
     const activeToken = token || localStorage.getItem("mobility_token");
-    const res = await fetch("/api/v1/resume/extract", {
+    const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+    const res = await fetch(`${API_BASE_URL}/api/v1/resume/extract`, {
       method: "POST",
       headers: {
         ...(activeToken ? { "Authorization": `Bearer ${activeToken}` } : {}),
@@ -350,12 +371,12 @@ export default function App() {
       throw new Error("Expired corporate session. Please login again.");
     }
 
-    const data = await res.json();
-    if (data.success) {
+    const data = await safeParseJson(res);
+    if (data && data.success) {
       setProfile(data.updatedProfile);
       return data;
     }
-    throw new Error(data.message || "Failed parsing parameters.");
+    throw new Error((data && data.message) || "Failed parsing parameters.");
   };
 
   // Apply for internal role via persistent SQLite applications tracker
@@ -367,8 +388,8 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ jobId, matchScore: 95 })
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeParseJson(res);
+      if (data && data.success) {
         setHasAppliedJobs(prev => [...prev, jobId]);
 
         const job = jobs.find(j => j.id === jobId);
@@ -955,8 +976,10 @@ export default function App() {
                         try {
                           const res = await fetchWithAuth("/api/v1/jobs");
                           if (res.ok) {
-                            const data = await res.json();
-                            setJobs(data);
+                            const data = await safeParseJson(res, []);
+                            if (data) {
+                              setJobs(data);
+                            }
                           }
                         } catch (e) {
                           console.error("State sync failed: ", e);
